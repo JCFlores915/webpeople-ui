@@ -4,9 +4,11 @@ import {
     App as AntApp,
     Button,
     Card,
-    Flex,
+    Grid,
     Input,
     Layout,
+    Row,
+    Col,
     Select,
     Skeleton,
     Space,
@@ -16,6 +18,7 @@ import {
     Popconfirm,
     notification,
     Tooltip,
+    Divider,
 } from "antd";
 import { PlusOutlined, WarningOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
@@ -26,9 +29,12 @@ import { getApiError } from "../../api/http";
 import PersonDrawerForm from "./PersonDrawerForm";
 
 const { Content } = Layout;
+const { useBreakpoint } = Grid;
 
 export default function PersonsPage() {
     const qc = useQueryClient();
+    const screens = useBreakpoint();
+    const isMobile = !screens.sm;
 
     // Query state
     const [page, setPage] = useState(1);
@@ -48,7 +54,7 @@ export default function PersonsPage() {
     const personsQ = useQuery({
         queryKey,
         queryFn: () => getPersons({ page, pageSize, search, isActive }),
-        placeholderData: (prev) => prev, // UX: mantiene la tabla mientras pagina/busca
+        placeholderData: (prev) => prev,
     });
 
     // MUTATIONS
@@ -96,92 +102,171 @@ export default function PersonsPage() {
 
     const data = personsQ.data;
     const items = data?.items ?? [];
-    const columns: ColumnsType<Person> = [
-        {
-            title: "Name",
-            key: "name",
-            render: (_value: unknown, p: Person) => (
-                <Typography.Text strong>
-                    {p.firstName} {p.lastName}
-                </Typography.Text>
-            ),
-        },
-        { title: "Email", dataIndex: "email", key: "email" },
-        {
-            title: "Phone",
-            dataIndex: "phone",
-            key: "phone",
-            render: (v: string | null | undefined) =>
-                v?.trim() ? (
-                    <Typography.Text>{v}</Typography.Text>
-                ) : (
-                    <Tooltip title="No phone available">
-                        <Tag icon={<WarningOutlined />} color="warning">
-                            No phone
-                        </Tag>
-                    </Tooltip>
-                ),
-        },
-        { title: "Document", dataIndex: "documentNumber", key: "documentNumber" },
-        {
-            title: "Status",
-            dataIndex: "isActive",
-            key: "isActive",
-            render: (v: boolean) =>
-                v ? <Tag color="green">ACTIVE</Tag> : <Tag color="red">INACTIVE</Tag>,
-        },
-        {
-            title: "Actions",
-            key: "actions",
-            width: 220,
-            render: (_: unknown, p: Person) => {
-                if (!p.isActive) return null;
-                return (
-                    <Space>
-                        <Button
-                            size="small"
-                            onClick={() => {
-                                setEditing(p);
-                                setDrawerOpen(true);
-                            }}
-                            disabled={busy}
-                        >
-                            Edit
-                        </Button>
 
-                        <Popconfirm
-                            title="Delete person?"
-                            description="This action will mark the person as inactive (soft delete)."
-                            okText="Delete"
-                            okButtonProps={{ danger: true, loading: deleteM.isPending }}
-                            onConfirm={() => deleteM.mutate(p.personId)}
-                            disabled={busy}
-                        >
-                            <Button size="small" danger disabled={busy}>
-                                Delete
-                            </Button>
-                        </Popconfirm>
-                    </Space>
-                );
+    const deleteIsPending = deleteM.isPending;
+    const deleteMutate = deleteM.mutate;
+
+    const columns: ColumnsType<Person> = useMemo(() => {
+        const phoneBadge = (v: string | null | undefined) =>
+            v?.trim() ? (
+                <Typography.Text>{v}</Typography.Text>
+            ) : (
+                <Tooltip title="No phone available">
+                    <Tag icon={<WarningOutlined />} color="warning" style={{ marginInlineEnd: 0 }}>
+                        No phone
+                    </Tag>
+                </Tooltip>
+            );
+
+        return [
+            {
+                title: "Name",
+                key: "name",
+                render: (_value: unknown, p: Person) => (
+                    <div style={{ minWidth: 220 }}>
+                        <Typography.Text strong>
+                            {p.firstName} {p.lastName}
+                        </Typography.Text>
+
+                        {isMobile && (
+                            <>
+                                <div style={{ marginTop: 6 }}>
+                                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                        {p.email}
+                                    </Typography.Text>
+                                </div>
+
+                                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                    {phoneBadge(p.phone)}
+                                    <Tag style={{ marginInlineEnd: 0 }}>{p.documentNumber}</Tag>
+                                    {p.isActive ? <Tag color="green">ACTIVE</Tag> : <Tag color="red">INACTIVE</Tag>}
+                                </div>
+
+                                {/* Acciones solo si está activo (móvil) */}
+                                {p.isActive && (
+                                    <>
+                                        <Divider style={{ margin: "12px 0" }} />
+                                        <Space>
+                                            <Button
+                                                size="small"
+                                                onClick={() => {
+                                                    setEditing(p);
+                                                    setDrawerOpen(true);
+                                                }}
+                                                disabled={busy}
+                                            >
+                                                Edit
+                                            </Button>
+
+                                            <Popconfirm
+                                                title="Delete person?"
+                                                description="This action will mark the person as inactive (soft delete)."
+                                                okText="Delete"
+                                                okButtonProps={{ danger: true, loading: deleteIsPending }}
+                                                onConfirm={() => deleteMutate(p.personId)}
+                                                disabled={busy}
+                                            >
+                                                <Button size="small" danger disabled={busy}>
+                                                    Delete
+                                                </Button>
+                                            </Popconfirm>
+                                        </Space>
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </div>
+                ),
             },
-        },
-    ];
+            {
+                title: "Email",
+                dataIndex: "email",
+                key: "email",
+                responsive: ["sm"],
+            },
+            {
+                title: "Phone",
+                dataIndex: "phone",
+                key: "phone",
+                responsive: ["sm"],
+                render: (v: string | null | undefined) => phoneBadge(v),
+            },
+            {
+                title: "Document",
+                dataIndex: "documentNumber",
+                key: "documentNumber",
+                responsive: ["sm"],
+            },
+            {
+                title: "Status",
+                dataIndex: "isActive",
+                key: "isActive",
+                responsive: ["sm"],
+                render: (v: boolean) => (v ? <Tag color="green">ACTIVE</Tag> : <Tag color="red">INACTIVE</Tag>),
+            },
+            {
+                title: "Actions",
+                key: "actions",
+                width: 220,
+                responsive: ["sm"],
+                render: (_: unknown, p: Person) => {
+                    if (!p.isActive) return <Typography.Text type="secondary">—</Typography.Text>;
+
+                    return (
+                        <Space>
+                            <Button
+                                size="small"
+                                onClick={() => {
+                                    setEditing(p);
+                                    setDrawerOpen(true);
+                                }}
+                                disabled={busy}
+                            >
+                                Edit
+                            </Button>
+
+                            <Popconfirm
+                                title="Delete person?"
+                                description="This action will mark the person as inactive (soft delete)."
+                                okText="Delete"
+                                okButtonProps={{ danger: true, loading: deleteIsPending }}
+                                onConfirm={() => deleteMutate(p.personId)}
+                                disabled={busy}
+                            >
+                                <Button size="small" danger disabled={busy}>
+                                    Delete
+                                </Button>
+                            </Popconfirm>
+                        </Space>
+                    );
+                },
+            },
+        ];
+    }, [isMobile, busy, deleteIsPending, deleteMutate]);
 
     return (
         <AntApp>
-            <Layout style={{ minHeight: "100vh", background: "#fafafa" }}>
-                <Content style={{ display: "flex", justifyContent: "center", padding: 24 }}>
+            <Layout style={{ minHeight: "100vh", background: "#f6f7fb" }}>
+                <Content style={{ display: "flex", justifyContent: "center", padding: isMobile ? 12 : 24 }}>
                     <div style={{ width: "100%", maxWidth: 1100 }}>
-                        <Card style={{ borderRadius: 16 }}>
-                            <Flex justify="space-between" align="flex-start" gap={16} wrap="wrap">
-                                <div>
-                                    <Typography.Title level={3} style={{ margin: 0 }}>
+                        <Card
+                            style={{ borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.06)" }}
+                            bodyStyle={{ padding: isMobile ? 14 : 24 }}
+                        >
+                            {/* Header */}
+                            <Row gutter={[12, 12]} align="middle" justify="space-between">
+                                <Col xs={24} sm={16}>
+                                    <Typography.Title level={isMobile ? 4 : 3} style={{ margin: 0 }}>
                                         People Catalog
                                     </Typography.Title>
-                                </div>
+                                    <Typography.Text type="secondary">
+                                        Manage people records with search, pagination and status.
+                                    </Typography.Text>
+                                </Col>
 
-                                <Space>
+                                <Col xs={24} sm={8} style={{ display: "flex", justifyContent: isMobile ? "stretch" : "flex-end" }}>
                                     <Button
+                                        block={isMobile}
                                         type="primary"
                                         icon={<PlusOutlined />}
                                         onClick={() => {
@@ -192,52 +277,59 @@ export default function PersonsPage() {
                                     >
                                         New person
                                     </Button>
-                                </Space>
-                            </Flex>
+                                </Col>
+                            </Row>
 
+                            {/* Filters */}
                             <div style={{ marginTop: 16 }}>
-                                <Flex gap={12} wrap="wrap">
-                                    <Input
-                                        placeholder="Search (name, email, document)..."
-                                        value={search}
-                                        onChange={(e) => {
-                                            setPage(1);
-                                            setSearch(e.target.value);
-                                        }}
-                                        style={{ flex: 1, minWidth: 280 }}
-                                        allowClear
-                                    />
+                                <Row gutter={[12, 12]}>
+                                    <Col xs={24} sm={16}>
+                                        <Input
+                                            placeholder="Search (name, email, document)..."
+                                            value={search}
+                                            onChange={(e) => {
+                                                setPage(1);
+                                                setSearch(e.target.value);
+                                            }}
+                                            allowClear
+                                            size={isMobile ? "middle" : "large"}
+                                        />
+                                    </Col>
 
-                                    <Select
-                                        value={isActive === null ? "all" : isActive ? "active" : "inactive"}
-                                        onChange={(v) => {
-                                            setPage(1);
-                                            setIsActive(v === "all" ? null : v === "active");
-                                        }}
-                                        style={{ width: 160 }}
-                                        options={[
-                                            { value: "active", label: "Active" },
-                                            { value: "inactive", label: "Inactive" },
-                                            { value: "all", label: "All" },
-                                        ]}
-                                    />
-                                </Flex>
+                                    <Col xs={24} sm={8}>
+                                        <Select
+                                            value={isActive === null ? "all" : isActive ? "active" : "inactive"}
+                                            onChange={(v) => {
+                                                setPage(1);
+                                                setIsActive(v === "all" ? null : v === "active");
+                                            }}
+                                            style={{ width: "100%" }}
+                                            size={isMobile ? "middle" : "large"}
+                                            options={[
+                                                { value: "active", label: "Active" },
+                                                { value: "inactive", label: "Inactive" },
+                                                { value: "all", label: "All" },
+                                            ]}
+                                        />
+                                    </Col>
+                                </Row>
                             </div>
 
+                            {/* Table */}
                             <div style={{ marginTop: 16 }}>
                                 {personsQ.isLoading ? (
                                     <Skeleton active paragraph={{ rows: 6 }} />
                                 ) : personsQ.isError ? (
                                     <div style={{ padding: 12 }}>
-                                        <Typography.Text type="danger">
-                                            {getApiError(personsQ.error).message}
-                                        </Typography.Text>
+                                        <Typography.Text type="danger">{getApiError(personsQ.error).message}</Typography.Text>
                                     </div>
                                 ) : (
                                     <Table
                                         rowKey="personId"
                                         columns={columns}
                                         dataSource={items}
+                                        size={isMobile ? "small" : "middle"}
+                                        scroll={{ x: "max-content" }} // ✅ mobile safe
                                         pagination={{
                                             current: data?.page ?? 1,
                                             pageSize: data?.pageSize ?? pageSize,
