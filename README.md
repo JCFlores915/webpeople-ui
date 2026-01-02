@@ -79,16 +79,21 @@ If backend is in AWS, ensure CORS allows your frontend domain (Amplify).
 
 ---
 
-## Build for production
+## Link for production
 ```bash
-npm run build
-npm run preview
+Demo: https://main.d3do9ojvmjd321.amplifyapp.com/
 ```
+Images:
+
+![plot](./src/assets/image-1.png)
+![plot](./src/assets/image-2.png)
+![plot](./src/assets/image-3.png)
+![plot](./src/assets/image-4.png)
 
 ---
 
 ## (Optional) Deploy to AWS Amplify
 - Connect this repository in Amplify
-- Set build command: `npm ci && npm run build`
+- Set commit to main: `git push origin main`
 - Set output directory: `dist`
 - Set environment variable: `VITE_API_BASE_URL=...`
