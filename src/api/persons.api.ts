@@ -13,19 +13,19 @@ export async function getPersons(q: PersonsQuery): Promise<PagedResponse<Person>
   if (q.search?.trim()) params.search = q.search.trim();
   if (q.isActive !== null && q.isActive !== undefined) params.isActive = q.isActive;
 
-  const res = await http.get("/api/persons", { params });
+  const res = await http.get("/api/Persons", { params });
   return res.data;
 }
 
 export async function createPerson(payload: CreatePersonRequest): Promise<Person> {
-  const res = await http.post("/api/persons", payload);
+  const res = await http.post("/api/Persons", payload);
   return res.data;
 }
 
 export async function updatePerson(personId: string, payload: UpdatePersonRequest): Promise<void> {
-  await http.put(`/api/persons/${personId}`, payload);
+  await http.put(`/api/Persons/${personId}`, payload);
 }
 
 export async function deletePerson(personId: string): Promise<void> {
-  await http.delete(`/api/persons/${personId}`);
+  await http.delete(`/api/Persons/${personId}`);
 }
