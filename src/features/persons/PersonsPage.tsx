@@ -1,366 +1,477 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+
+import type { Person, CreatePersonRequest, UpdatePersonRequest } from "@/utils/types/persons.types";
+import { getPersons, createPerson, updatePerson, deletePerson } from "@/api/persons.api";
+import { getApiError } from "@/api/http";
+
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-    App as AntApp,
-    Button,
-    Card,
-    Grid,
-    Input,
-    Layout,
-    Row,
-    Col,
     Select,
-    Skeleton,
-    Space,
+    SelectTrigger,
+    SelectValue,
+    SelectContent,
+    SelectItem,
+} from "@/components/ui/select";
+import {
     Table,
-    Tag,
-    Typography,
-    Popconfirm,
-    notification,
-    Tooltip,
-    Divider,
-} from "antd";
-import { PlusOutlined, WarningOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+    TableHeader,
+    TableRow,
+    TableHead,
+    TableBody,
+    TableCell,
+} from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { Plus, Search, PhoneOff, Pencil, Trash2 } from "lucide-react";
+import PersonSheetForm from "./PersonSheetForm";
 
-import type { Person, CreatePersonRequest, UpdatePersonRequest } from "../../utils/types/persons.types";
-import { getPersons, createPerson, updatePerson, deletePerson } from "../../api/persons.api";
-import { getApiError } from "../../api/http";
-import PersonDrawerForm from "./PersonDrawerForm";
+function useDebounced<T>(value: T, delay = 350) {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+        const id = setTimeout(() => setDebounced(value), delay);
+        return () => clearTimeout(id);
+    }, [value, delay]);
+    return debounced;
+}
 
-const { Content } = Layout;
-const { useBreakpoint } = Grid;
+function useIsMobile(breakpointPx = 640) {
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth < breakpointPx);
+    useEffect(() => {
+        const onResize = () => setIsMobile(window.innerWidth < breakpointPx);
+        window.addEventListener("resize", onResize);
+        return () => window.removeEventListener("resize", onResize);
+    }, [breakpointPx]);
+    return isMobile;
+}
 
 export default function PersonsPage() {
     const qc = useQueryClient();
-    const screens = useBreakpoint();
-    const isMobile = !screens.sm;
+    const isMobile = useIsMobile();
 
     // Query state
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [search, setSearch] = useState("");
-    const [isActive, setIsActive] = useState<boolean | null>(true);
+    const [isActive, setIsActive] = useState<"active" | "inactive" | "all">("active");
 
-    // Drawer state
-    const [drawerOpen, setDrawerOpen] = useState(false);
+    const debouncedSearch = useDebounced(search, 350);
+
+    // Sheet state
+    const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<Person | null>(null);
 
+    const isActiveFilter = isActive === "all" ? null : isActive === "active";
+
     const queryKey = useMemo(
-        () => ["persons", { page, pageSize, search, isActive }],
-        [page, pageSize, search, isActive]
+        () => ["persons", { page, pageSize, search: debouncedSearch, isActive: isActiveFilter }],
+        [page, pageSize, debouncedSearch, isActiveFilter]
     );
 
     const personsQ = useQuery({
         queryKey,
-        queryFn: () => getPersons({ page, pageSize, search, isActive }),
+        queryFn: () => getPersons({ page, pageSize, search: debouncedSearch, isActive: isActiveFilter }),
         placeholderData: (prev) => prev,
     });
+
+    const data = personsQ.data;
+    const items = data?.items ?? [];
+    const total = Number(data?.totalItems ?? 0);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     // MUTATIONS
     const createM = useMutation({
         mutationFn: (payload: CreatePersonRequest) => createPerson(payload),
         onSuccess: async () => {
-            notification.success({ message: "Person created" });
-            setDrawerOpen(false);
+            toast.success("Person created");
+            setOpen(false);
             await qc.invalidateQueries({ queryKey: ["persons"] });
         },
         onError: (err) => {
             const e = getApiError(err);
-            notification.error({ message: "Create failed", description: e.message });
+            toast.error("Create failed", { description: e.message });
         },
     });
 
     const updateM = useMutation({
-        mutationFn: ({ id, payload }: { id: string; payload: UpdatePersonRequest }) =>
-            updatePerson(id, payload),
+        mutationFn: ({ id, payload }: { id: string; payload: UpdatePersonRequest }) => updatePerson(id, payload),
         onSuccess: async () => {
-            notification.success({ message: "Person updated" });
-            setDrawerOpen(false);
+            toast.success("Person updated");
+            setOpen(false);
             setEditing(null);
             await qc.invalidateQueries({ queryKey: ["persons"] });
         },
         onError: (err) => {
             const e = getApiError(err);
-            notification.error({ message: "Update failed", description: e.message });
+            toast.error("Update failed", { description: e.message });
         },
     });
 
     const deleteM = useMutation({
         mutationFn: (id: string) => deletePerson(id),
         onSuccess: async () => {
-            notification.success({ message: "Person deleted" });
+            toast.success("Person deleted");
             await qc.invalidateQueries({ queryKey: ["persons"] });
         },
         onError: (err) => {
             const e = getApiError(err);
-            notification.error({ message: "Delete failed", description: e.message });
+            toast.error("Delete failed", { description: e.message });
         },
     });
 
-    const busy = personsQ.isFetching || createM.isPending || updateM.isPending || deleteM.isPending;
+    const busy =
+        personsQ.isFetching || createM.isPending || updateM.isPending || deleteM.isPending;
 
-    const data = personsQ.data;
-    const items = data?.items ?? [];
+    const openCreate = () => {
+        setEditing(null);
+        setOpen(true);
+    };
 
-    const deleteIsPending = deleteM.isPending;
-    const deleteMutate = deleteM.mutate;
+    const openEdit = (p: Person) => {
+        setEditing(p);
+        setOpen(true);
+    };
 
-    const columns: ColumnsType<Person> = useMemo(() => {
-        const phoneBadge = (v: string | null | undefined) =>
-            v?.trim() ? (
-                <Typography.Text>{v}</Typography.Text>
-            ) : (
-                <Tooltip title="No phone available">
-                    <Tag icon={<WarningOutlined />} color="warning" style={{ marginInlineEnd: 0 }}>
-                        No phone
-                    </Tag>
-                </Tooltip>
-            );
+    const statusBadge = (active: boolean) =>
+        active ? (
+            <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">ACTIVE</Badge>
+        ) : (
+            <Badge variant="destructive">INACTIVE</Badge>
+        );
 
-        return [
-            {
-                title: "Name",
-                key: "name",
-                render: (_value: unknown, p: Person) => (
-                    <div style={{ minWidth: 220 }}>
-                        <Typography.Text strong>
-                            {p.firstName} {p.lastName}
-                        </Typography.Text>
-
-                        {isMobile && (
-                            <>
-                                <div style={{ marginTop: 6 }}>
-                                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                        {p.email}
-                                    </Typography.Text>
-                                </div>
-
-                                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                    {phoneBadge(p.phone)}
-                                    <Tag style={{ marginInlineEnd: 0 }}>{p.documentNumber}</Tag>
-                                    {p.isActive ? <Tag color="green">ACTIVE</Tag> : <Tag color="red">INACTIVE</Tag>}
-                                </div>
-
-                                {/* Acciones solo si está activo (móvil) */}
-                                {p.isActive && (
-                                    <>
-                                        <Divider style={{ margin: "12px 0" }} />
-                                        <Space>
-                                            <Button
-                                                size="small"
-                                                onClick={() => {
-                                                    setEditing(p);
-                                                    setDrawerOpen(true);
-                                                }}
-                                                disabled={busy}
-                                            >
-                                                Edit
-                                            </Button>
-
-                                            <Popconfirm
-                                                title="Delete person?"
-                                                description="This action will mark the person as inactive (soft delete)."
-                                                okText="Delete"
-                                                okButtonProps={{ danger: true, loading: deleteIsPending }}
-                                                onConfirm={() => deleteMutate(p.personId)}
-                                                disabled={busy}
-                                            >
-                                                <Button size="small" danger disabled={busy}>
-                                                    Delete
-                                                </Button>
-                                            </Popconfirm>
-                                        </Space>
-                                    </>
-                                )}
-                            </>
-                        )}
-                    </div>
-                ),
-            },
-            {
-                title: "Email",
-                dataIndex: "email",
-                key: "email",
-                responsive: ["sm"],
-            },
-            {
-                title: "Phone",
-                dataIndex: "phone",
-                key: "phone",
-                responsive: ["sm"],
-                render: (v: string | null | undefined) => phoneBadge(v),
-            },
-            {
-                title: "Document",
-                dataIndex: "documentNumber",
-                key: "documentNumber",
-                responsive: ["sm"],
-            },
-            {
-                title: "Status",
-                dataIndex: "isActive",
-                key: "isActive",
-                responsive: ["sm"],
-                render: (v: boolean) => (v ? <Tag color="green">ACTIVE</Tag> : <Tag color="red">INACTIVE</Tag>),
-            },
-            {
-                title: "Actions",
-                key: "actions",
-                width: 220,
-                responsive: ["sm"],
-                render: (_: unknown, p: Person) => {
-                    if (!p.isActive) return <Typography.Text type="secondary">—</Typography.Text>;
-
-                    return (
-                        <Space>
-                            <Button
-                                size="small"
-                                onClick={() => {
-                                    setEditing(p);
-                                    setDrawerOpen(true);
-                                }}
-                                disabled={busy}
-                            >
-                                Edit
-                            </Button>
-
-                            <Popconfirm
-                                title="Delete person?"
-                                description="This action will mark the person as inactive (soft delete)."
-                                okText="Delete"
-                                okButtonProps={{ danger: true, loading: deleteIsPending }}
-                                onConfirm={() => deleteMutate(p.personId)}
-                                disabled={busy}
-                            >
-                                <Button size="small" danger disabled={busy}>
-                                    Delete
-                                </Button>
-                            </Popconfirm>
-                        </Space>
-                    );
-                },
-            },
-        ];
-    }, [isMobile, busy, deleteIsPending, deleteMutate]);
+    const phoneBadge = (phone?: string | null) =>
+        phone?.trim() ? (
+            <span className="text-sm text-foreground">{phone}</span>
+        ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-xs font-medium text-amber-700">
+                <PhoneOff className="h-3.5 w-3.5" /> No phone
+            </span>
+        );
 
     return (
-        <AntApp>
-            <Layout style={{ minHeight: "100vh", background: "#f6f7fb" }}>
-                <Content style={{ display: "flex", justifyContent: "center", padding: isMobile ? 12 : 24 }}>
-                    <div style={{ width: "100%", maxWidth: 1100 }}>
-                        <Card
-                            style={{ borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.06)" }}
-                            bodyStyle={{ padding: isMobile ? 14 : 24 }}
-                        >
-                            {/* Header */}
-                            <Row gutter={[12, 12]} align="middle" justify="space-between">
-                                <Col xs={24} sm={16}>
-                                    <Typography.Title level={isMobile ? 4 : 3} style={{ margin: 0 }}>
-                                        People Catalog
-                                    </Typography.Title>
-                                    <Typography.Text type="secondary">
-                                        Manage people records with search, pagination and status.
-                                    </Typography.Text>
-                                </Col>
+        <div className="min-h-screen bg-background">
+            <div className="absolute inset-0 -z-10 bg-[radial-gradient(80%_60%_at_50%_0%,hsl(var(--muted))_0%,transparent_60%)]" />
+            <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
 
-                                <Col xs={24} sm={8} style={{ display: "flex", justifyContent: isMobile ? "stretch" : "flex-end" }}>
-                                    <Button
-                                        block={isMobile}
-                                        type="primary"
-                                        icon={<PlusOutlined />}
-                                        onClick={() => {
-                                            setEditing(null);
-                                            setDrawerOpen(true);
-                                        }}
-                                        disabled={busy}
-                                    >
-                                        New person
-                                    </Button>
-                                </Col>
-                            </Row>
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35 }}
+                    className="space-y-5"
+                >
+                    {/* Header */}
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="space-y-1">
+                            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
+                                People Catalog
+                            </h1>
+                        </div>
 
-                            {/* Filters */}
-                            <div style={{ marginTop: 16 }}>
-                                <Row gutter={[12, 12]}>
-                                    <Col xs={24} sm={16}>
-                                        <Input
-                                            placeholder="Search (name, email, document)..."
-                                            value={search}
-                                            onChange={(e) => {
-                                                setPage(1);
-                                                setSearch(e.target.value);
-                                            }}
-                                            allowClear
-                                            size={isMobile ? "middle" : "large"}
-                                        />
-                                    </Col>
+                        <div className="flex items-center gap-2">
+                            <ThemeToggle />
+                            <Button
+                                onClick={openCreate}
+                                className="h-11 gap-2 rounded-xl"
+                                disabled={busy}
+                            >
+                                <Plus className="h-4 w-4" />
+                                New person
+                            </Button>
+                        </div>
+                    </div>
 
-                                    <Col xs={24} sm={8}>
-                                        <Select
-                                            value={isActive === null ? "all" : isActive ? "active" : "inactive"}
-                                            onChange={(v) => {
-                                                setPage(1);
-                                                setIsActive(v === "all" ? null : v === "active");
-                                            }}
-                                            style={{ width: "100%" }}
-                                            size={isMobile ? "middle" : "large"}
-                                            options={[
-                                                { value: "active", label: "Active" },
-                                                { value: "inactive", label: "Inactive" },
-                                                { value: "all", label: "All" },
-                                            ]}
-                                        />
-                                    </Col>
-                                </Row>
+                    {/* Toolbar */}
+                    <Card className="rounded-2xl border-slate-200/70 p-4 shadow-sm">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <Input
+                                    value={search}
+                                    onChange={(e) => {
+                                        setPage(1);
+                                        setSearch(e.target.value);
+                                    }}
+                                    placeholder="Search by name, email, document..."
+                                    className="h-11 rounded-xl pl-10"
+                                />
                             </div>
 
-                            {/* Table */}
-                            <div style={{ marginTop: 16 }}>
-                                {personsQ.isLoading ? (
-                                    <Skeleton active paragraph={{ rows: 6 }} />
-                                ) : personsQ.isError ? (
-                                    <div style={{ padding: 12 }}>
-                                        <Typography.Text type="danger">{getApiError(personsQ.error).message}</Typography.Text>
+                            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                                <Select
+                                    value={isActive}
+                                    onValueChange={(v) => {
+                                        setPage(1);
+                                        setIsActive(v as "active" | "inactive" | "all");
+                                    }}
+                                >
+                                    <SelectTrigger className="h-11 w-full rounded-xl sm:w-45">
+                                        <SelectValue placeholder="Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="active">Active</SelectItem>
+                                        <SelectItem value="inactive">Inactive</SelectItem>
+                                        <SelectItem value="all">All</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                <Select
+                                    value={String(pageSize)}
+                                    onValueChange={(v) => {
+                                        setPage(1);
+                                        setPageSize(Number(v));
+                                    }}
+                                >
+                                    <SelectTrigger className="h-11 w-full rounded-xl sm:w-37.5">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {[5, 10, 20, 50, 100].map((n) => (
+                                            <SelectItem key={n} value={String(n)}>
+                                                {n} / page
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Content */}
+                    <Card className="rounded-2xl border-slate-200/70 p-0 shadow-sm">
+                        {/* Loading / Error */}
+                        {personsQ.isLoading ? (
+                            <div className="p-4 sm:p-6">
+                                <div className="space-y-3">
+                                    <Skeleton className="h-6 w-48 rounded-lg" />
+                                    <Skeleton className="h-11 w-full rounded-xl" />
+                                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                        {Array.from({ length: isMobile ? 3 : 6 }).map((_, i) => (
+                                            <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : personsQ.isError ? (
+                            <div className="p-6">
+                                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                    {getApiError(personsQ.error).message}
+                                </div>
+                            </div>
+                        ) : items.length === 0 ? (
+                            <div className="p-10 text-center">
+                                <div className="mx-auto max-w-sm space-y-2">
+                                    <p className="text-base font-medium text-foreground">No results</p>
+                                    <p className="text-sm text-foreground/70">
+                                        Try adjusting your search or filters.
+                                    </p>
+                                    <div className="pt-2">
+                                        <Button onClick={openCreate} className="rounded-xl">
+                                            Create first person
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Desktop Table */}
+                                {!isMobile ? (
+                                    <div className="p-4 sm:p-6">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="border-slate-200/70">
+                                                    <TableHead className="w-65">Name</TableHead>
+                                                    <TableHead>Email</TableHead>
+                                                    <TableHead className="w-42.5">Phone</TableHead>
+                                                    <TableHead className="w-42.5">Document</TableHead>
+                                                    <TableHead className="w-30">Status</TableHead>
+                                                    <TableHead className="w-42.5" />
+                                                </TableRow>
+                                            </TableHeader>
+
+                                            <TableBody>
+                                                <AnimatePresence initial={false}>
+                                                    {items.map((p) => (
+                                                        <motion.tr
+                                                            key={p.personId}
+                                                            initial={{ opacity: 0, y: 6 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: -6 }}
+                                                            transition={{ duration: 0.18 }}
+                                                            className="border-b border-slate-200/60"
+                                                        >
+                                                            <TableCell className="py-4">
+                                                                <div className="font-medium text-foreground">
+                                                                    {p.firstName} {p.lastName}
+                                                                </div>
+                                                            </TableCell>
+
+                                                            <TableCell className="py-4 text-foreground">{p.email}</TableCell>
+                                                            <TableCell className="py-4 text-foreground">{phoneBadge(p.phone)}</TableCell>
+                                                            <TableCell className="py-4">
+                                                                <span className="text-sm text-foreground">{p.documentNumber}</span>
+                                                            </TableCell>
+                                                            <TableCell className="py-4">{statusBadge(p.isActive)}</TableCell>
+
+                                                            <TableCell className="py-4">
+                                                                {p.isActive ? (
+                                                                    <div className="flex justify-end gap-2">
+                                                                        <Button
+                                                                            variant="secondary"
+                                                                            className="h-9 rounded-xl"
+                                                                            disabled={busy}
+                                                                            onClick={() => openEdit(p)}
+                                                                        >
+                                                                            <Pencil className="mr-2 h-4 w-4" />
+                                                                            Edit
+                                                                        </Button>
+
+                                                                        <Button
+                                                                            variant="destructive"
+                                                                            className="h-9 rounded-xl"
+                                                                            disabled={busy}
+                                                                            onClick={() => {
+                                                                                toast("Delete person?", {
+                                                                                    description:
+                                                                                        "This action will mark the person as inactive (soft delete).",
+                                                                                    action: {
+                                                                                        label: deleteM.isPending ? "Deleting..." : "Confirm",
+                                                                                        onClick: () => deleteM.mutate(p.personId),
+                                                                                    },
+                                                                                });
+                                                                            }}
+                                                                        >
+                                                                            <Trash2 className="mr-2 h-4 w-4" />
+                                                                            Delete
+                                                                        </Button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="text-right text-sm text-slate-500">—</div>
+                                                                )}
+                                                            </TableCell>
+                                                        </motion.tr>
+                                                    ))}
+                                                </AnimatePresence>
+                                            </TableBody>
+                                        </Table>
                                     </div>
                                 ) : (
-                                    <Table
-                                        rowKey="personId"
-                                        columns={columns}
-                                        dataSource={items}
-                                        size={isMobile ? "small" : "middle"}
-                                        scroll={{ x: "max-content" }} // ✅ mobile safe
-                                        pagination={{
-                                            current: data?.page ?? 1,
-                                            pageSize: data?.pageSize ?? pageSize,
-                                            total: Number(data?.totalItems ?? 0),
-                                            showSizeChanger: true,
-                                            pageSizeOptions: [5, 10, 20, 50, 100],
-                                            onChange: (p, ps) => {
-                                                setPage(p);
-                                                setPageSize(ps);
-                                            },
-                                        }}
-                                        loading={busy && !personsQ.isLoading}
-                                    />
-                                )}
-                            </div>
-                        </Card>
+                                    /* Mobile Cards */
+                                    <div className="p-4">
+                                        <div className="grid gap-3">
+                                            <AnimatePresence initial={false}>
+                                                {items.map((p) => (
+                                                    <motion.div
+                                                        key={p.personId}
+                                                        initial={{ opacity: 0, y: 10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, y: -10 }}
+                                                        transition={{ duration: 0.2 }}
+                                                        className="rounded-2xl border border-slate-200/70  p-4 shadow-sm"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div>
+                                                                <div className="text-base font-semibold text-foreground">
+                                                                    {p.firstName} {p.lastName}
+                                                                </div>
+                                                                <div className="mt-1 text-sm text-slate-600 dark:text-slate-400">{p.email}</div>
+                                                            </div>
+                                                            {statusBadge(p.isActive)}
+                                                        </div>
 
-                        <PersonDrawerForm
-                            open={drawerOpen}
-                            busy={createM.isPending || updateM.isPending}
-                            editing={editing}
-                            onClose={() => {
-                                setDrawerOpen(false);
-                                setEditing(null);
-                            }}
-                            onCreate={(payload) => createM.mutate(payload)}
-                            onUpdate={(id, payload) => updateM.mutate({ id, payload })}
-                        />
-                    </div>
-                </Content>
-            </Layout>
-        </AntApp>
+                                                        <Separator className="my-3" />
+
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {phoneBadge(p.phone)}
+                                                            <Badge variant="secondary" className="rounded-full">
+                                                                {p.documentNumber}
+                                                            </Badge>
+                                                        </div>
+
+                                                        {p.isActive && (
+                                                            <div className="mt-4 flex gap-2">
+                                                                <Button
+                                                                    variant="secondary"
+                                                                    className="h-10 flex-1 rounded-xl"
+                                                                    disabled={busy}
+                                                                    onClick={() => openEdit(p)}
+                                                                >
+                                                                    <Pencil className="mr-2 h-4 w-4" />
+                                                                    Edit
+                                                                </Button>
+                                                                <Button
+                                                                    variant="destructive"
+                                                                    className="h-10 flex-1 rounded-xl"
+                                                                    disabled={busy}
+                                                                    onClick={() => deleteM.mutate(p.personId)}
+                                                                >
+                                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                                    Delete
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    </motion.div>
+                                                ))}
+                                            </AnimatePresence>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Footer Pagination */}
+                                <div className="flex flex-col gap-3 border-t border-slate-200/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="text-sm text-foreground">
+                                        Showing{" "}
+                                        <span className="font-medium text-foreground">{items.length}</span>{" "}
+                                        of{" "}
+                                        <span className="font-medium text-foreground">{total}</span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-2 sm:justify-end">
+                                        <Button
+                                            variant="secondary"
+                                            className="h-10 rounded-xl"
+                                            disabled={busy || page <= 1}
+                                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                        >
+                                            Prev
+                                        </Button>
+
+                                        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                            Page <span className="font-medium text-slate-900">{page}</span> / {totalPages}
+                                        </div>
+
+                                        <Button
+                                            variant="secondary"
+                                            className="h-10 rounded-xl"
+                                            disabled={busy || page >= totalPages}
+                                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                        >
+                                            Next
+                                        </Button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </Card>
+                </motion.div>
+
+                <PersonSheetForm
+                    open={open}
+                    busy={createM.isPending || updateM.isPending}
+                    editing={editing}
+                    onOpenChange={(v) => {
+                        setOpen(v);
+                        if (!v) setEditing(null);
+                    }}
+                    onCreate={(payload) => createM.mutate(payload)}
+                    onUpdate={(id, payload) => updateM.mutate({ id, payload })}
+                />
+            </div>
+        </div>
     );
 }

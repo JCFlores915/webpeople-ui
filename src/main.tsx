@@ -1,10 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ConfigProvider, theme } from "antd";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import "antd/dist/reset.css";
 import App from "./App";
+import "./index.css";
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -12,26 +14,17 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: 10_000,
     },
-    mutations: {
-      retry: 0,
-    },
   },
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ConfigProvider
-        theme={{
-          algorithm: theme.defaultAlgorithm,
-          token: {
-            borderRadius: 12,
-            fontSize: 14,
-          },
-        }}
-      >
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
         <App />
-      </ConfigProvider>
-    </QueryClientProvider>
+        <Toaster richColors />
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
+    </ThemeProvider>
   </React.StrictMode>
 );

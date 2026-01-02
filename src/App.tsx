@@ -1,4 +1,4 @@
-import PersonsPage from "./features/persons/PersonsPage";
+import PersonsPage from "@/features/persons/PersonsPage";
 
 export default function App() {
   return <PersonsPage />;
