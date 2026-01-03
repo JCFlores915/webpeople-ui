@@ -8,6 +8,7 @@ UI for the People Catalog API:
   - Clear success/error notifications
   - Field validation + inline form errors
   - Consistent final state after repeated actions
+- Theme (Dark / Light)
 
 ---
 
