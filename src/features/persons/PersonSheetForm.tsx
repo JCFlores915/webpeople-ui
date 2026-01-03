@@ -208,11 +208,12 @@ export default function PersonSheetForm({
                             {/* Fields */}
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
+                                    <Label className="flex items-center gap-2" htmlFor="firstName">
                                         <User2 className="h-4 w-4 text-slate-500" />
                                         First name <span className="text-red-500">*</span>
                                     </Label>
                                     <Input
+                                        id="firstName"
                                         disabled={busy}
                                         placeholder="John"
                                         {...form.register("firstName")}
@@ -225,11 +226,12 @@ export default function PersonSheetForm({
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
+                                    <Label className="flex items-center gap-2" htmlFor="lastName">
                                         <User2 className="h-4 w-4 text-slate-500" />
                                         Last name <span className="text-red-500">*</span>
                                     </Label>
                                     <Input
+                                        id="lastName"
                                         disabled={busy}
                                         placeholder="Doe"
                                         {...form.register("lastName")}
@@ -243,11 +245,12 @@ export default function PersonSheetForm({
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
+                                <Label className="flex items-center gap-2" htmlFor="email">
                                     <Mail className="h-4 w-4 text-slate-500" />
                                     Email <span className="text-red-500">*</span>
                                 </Label>
                                 <Input
+                                    id="email"
                                     disabled={busy}
                                     placeholder="john.doe@example.com"
                                     {...form.register("email")}
@@ -261,11 +264,12 @@ export default function PersonSheetForm({
 
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
+                                    <Label className="flex items-center gap-2" htmlFor="phone">
                                         <Phone className="h-4 w-4 text-slate-500" />
                                         Phone
                                     </Label>
                                     <Input
+                                        id="phone"
                                         disabled={busy}
                                         placeholder="+505..."
                                         {...form.register("phone")}
@@ -274,11 +278,12 @@ export default function PersonSheetForm({
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
+                                    <Label className="flex items-center gap-2" htmlFor="birthDate">
                                         <CalendarDays className="h-4 w-4 text-slate-500" />
                                         Birth date
                                     </Label>
                                     <Input
+                                        id="birthDate"
                                         disabled={busy}
                                         type="date"
                                         {...form.register("birthDate")}
@@ -292,11 +297,12 @@ export default function PersonSheetForm({
                             </div>
 
                             <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
+                                <Label className="flex items-center gap-2" htmlFor="documentNumber">
                                     <IdCard className="h-4 w-4 text-slate-500" />
                                     Document number <span className="text-red-500">*</span>
                                 </Label>
                                 <Input
+                                    id="documentNumber"
                                     disabled={busy}
                                     placeholder="ID-0001"
                                     {...form.register("documentNumber")}
