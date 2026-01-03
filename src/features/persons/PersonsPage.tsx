@@ -28,10 +28,9 @@ import {
     TableCell,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Plus, Search, PhoneOff, Pencil, Trash2 } from "lucide-react";
 import PersonSheetForm from "./PersonSheetForm";
-
+import { TriangleAlertIcon } from "lucide-react";
 function useDebounced<T>(value: T, delay = 350) {
     const [debounced, setDebounced] = useState(value);
     useEffect(() => {
@@ -155,10 +154,9 @@ export default function PersonsPage() {
         );
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="">
             <div className="absolute inset-0 -z-10 bg-[radial-gradient(80%_60%_at_50%_0%,hsl(var(--muted))_0%,transparent_60%)]" />
-            <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
-
+            <div className="mx-auto w-full">
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -166,15 +164,14 @@ export default function PersonsPage() {
                     className="space-y-5"
                 >
                     {/* Header */}
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="flex  gap-4 flex-row justify-between">
                         <div className="space-y-1">
-                            <h1 className="m-0! text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
+                            <h3 className="m-0! text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
                                 People Catalog
-                            </h1>
+                            </h3>
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <ThemeToggle />
                             <Button
                                 onClick={openCreate}
                                 className="h-11 gap-2 rounded-xl"
@@ -259,8 +256,12 @@ export default function PersonsPage() {
                             </div>
                         ) : personsQ.isError ? (
                             <div className="p-6">
-                                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 text-center text-bold">
+                                    <div className="flex justify-center mt-2">
+                                        <TriangleAlertIcon className="h-6 w-6 text-red-700" />
+                                    </div>
                                     {getApiError(personsQ.error).message}
+
                                 </div>
                             </div>
                         ) : items.length === 0 ? (
@@ -272,7 +273,7 @@ export default function PersonsPage() {
                                     </p>
                                     <div className="pt-2">
                                         <Button onClick={openCreate} className="rounded-xl">
-                                            Create first person
+                                            Create person
                                         </Button>
                                     </div>
                                 </div>
