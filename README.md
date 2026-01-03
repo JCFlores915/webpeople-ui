@@ -86,10 +86,8 @@ Demo: https://main.d3do9ojvmjd321.amplifyapp.com/
 ```
 Images:
 
-![plot](./src/assets/image-1.png)
-![plot](./src/assets/image-2.png)
-![plot](./src/assets/image-3.png)
-![plot](./src/assets/image-4.png)
+![plot](./src/assets/image-dark.png)
+
 
 ---
 
